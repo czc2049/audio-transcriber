@@ -1,0 +1,163 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Transcription Service</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h1 class="text-2xl font-bold mb-6 text-center">Audio Transcription</h1>
+            
+            <!-- Upload Form -->
+            <div class="mb-6">
+                <form id="uploadForm" class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <input type="file" 
+                               id="audioFile" 
+                               accept=".mp3,.wav,.m4a,.ogg,.wma,.aac"
+                               class="hidden" />
+                        <label for="audioFile" 
+                               class="cursor-pointer text-blue-500 hover:text-blue-600">
+                            Click to select audio file or drag and drop
+                        </label>
+                        <p id="fileName" class="mt-2 text-sm text-gray-500"></p>
+                    </div>
+                    <button type="submit" 
+                            class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
+                            disabled>
+                        Transcribe
+                    </button>
+                </form>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden">
+                <div class="flex justify-center items-center space-x-2">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <p>Transcribing...</p>
+                </div>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result" class="hidden">
+                <h2 class="font-semibold mb-2">Transcription Result:</h2>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p id="transcriptionText" class="whitespace-pre-wrap"></p>
+                </div>
+                <div class="mt-2 text-sm text-gray-500">
+                    <p id="languageInfo"></p>
+                    <p id="durationInfo"></p>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div id="error" class="hidden text-red-500 mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('audioFile');
+        const fileLabel = document.getElementById('fileName');
+        const submitButton = form.querySelector('button[type="submit"]');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const error = document.getElementById('error');
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileLabel.textContent = file.name;
+                submitButton.disabled = false;
+            } else {
+                fileLabel.textContent = '';
+                submitButton.disabled = true;
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            // Reset UI
+            result.classList.add('hidden');
+            error.classList.add('hidden');
+            loading.classList.remove('hidden');
+            submitButton.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Transcription failed');
+                }
+
+                // Show result
+                document.getElementById('transcriptionText').textContent = data.text;
+                document.getElementById('languageInfo').textContent = `Detected Language: ${data.language}`;
+                document.getElementById('durationInfo').textContent = 
+                    `Duration: ${Math.round(data.duration)} seconds`;
+                result.classList.remove('hidden');
+
+            } catch (err) {
+                error.textContent = err.message;
+                error.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+                submitButton.disabled = false;
+            }
+        });
+
+        // Drag and drop support
+        const dropZone = document.querySelector('.border-dashed');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('border-blue-500');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('border-blue-500');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            fileInput.files = dt.files;
+            fileLabel.textContent = file.name;
+            submitButton.disabled = false;
+        }
+    </script>
+</body>
+</html>
